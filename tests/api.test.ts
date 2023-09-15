@@ -403,6 +403,46 @@ describe("Test api", () => {
     expect(getTaggedContentResponse.body.length).toEqual(2);
   });
 
+  it("updating tags", async () => {
+    const newContent: CreateContentRequest = {
+      title: "Test Content",
+      body: "Test Body",
+      tags: ["tag1", "tag2"],
+    };
+    const createResponse = await createContent(newContent);
+    const updatedContent: UpdateContentRequest = {
+      title: "Updated Test Content",
+      body: "Updated Test Body",
+      tags: ["newtag1", "newtag2"],
+    };
+    const res = await updateContent(createResponse.body.id, updatedContent);
+
+    // Validate response
+    expect(res.statusCode).toEqual(200);
+    expect(res.body).toHaveProperty("id");
+    expect(res.body).toHaveProperty("views");
+    expect(res.body).toHaveProperty("title", "Updated Test Content");
+    expect(res.body).toHaveProperty("body", "Updated Test Body");
+
+    // Validate DB
+    const tagRecords = await db.select().from(tagsTable);
+    // Note: tag records are not deleted even when they have no referencing content
+    expect(tagRecords.length).toEqual(4);
+
+    const contentTagRecords = await db.select().from(contentTagsTable);
+    // The relational records, however, are deleted
+    expect(contentTagRecords.length).toEqual(2);
+
+    updatedContent.tags!.forEach((tag) => {
+      expect(tagRecords.map((t) => t.name)).toContain(tag);
+    });
+
+    contentTagRecords.forEach((t) => {
+      expect(t.contentId).toEqual(createResponse.body.id);
+      expect(tagRecords.map((t) => t.id)).toContain(t.tagId);
+    });
+  });
+
   it("should handle not found content", async () => {
     const res = await request(app).get("/api/contents/9999");
     expect(res.statusCode).toEqual(404);

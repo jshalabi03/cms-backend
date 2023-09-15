@@ -16,9 +16,9 @@ tagRoutes.get("/", async (_request, response) => {
   try {
     const records = await db.select().from(tagsTable);
     return response.status(200).json(records);
-  } catch (err) {
-    logger.error(err);
-    return response.status(500).send();
+  } catch (error) {
+    logger.error(error);
+    return response.status(500).json({ error });
   }
 });
 
@@ -39,14 +39,15 @@ tagRoutes.get(
           contentTagsTable,
           eq(contentsTable.id, contentTagsTable.contentId)
         )
-        .where(eq(contentTagsTable.tagId, tagId));
+        .innerJoin(tagsTable, eq(contentTagsTable.tagId, tagsTable.id))
+        .where(eq(tagsTable.id, tagId));
       const transformedRecords = records.map((r) => {
-        return { ...r.contents, tagId: r.content_tags.tagId };
+        return { ...r.contents, tag: r.tags };
       });
       return response.status(200).json(transformedRecords);
-    } catch (err) {
-      logger.error(err);
-      return response.status(500).send();
+    } catch (error) {
+      logger.error(error);
+      return response.status(500).json({ error });
     }
   }
 );

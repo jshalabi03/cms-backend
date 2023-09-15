@@ -18,8 +18,6 @@ export async function clearDb() {
   await db.delete(contentTagsTable);
 }
 
-export async function validateContentRecord() {}
-
 /* RESPONSE VALIDATION */
 
 export interface CreateContentRequest {
