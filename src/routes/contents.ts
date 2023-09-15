@@ -25,6 +25,7 @@ contentRoutes.post(
   async (request, response) => {
     const { title, body, tags } = request.body;
     try {
+      // Insert new content
       const [newContent] = await db
         .insert(contentsTable)
         .values({
@@ -33,6 +34,35 @@ contentRoutes.post(
         })
         .returning();
 
+      // Retrieve or insert tags
+      const tagPromises =
+        tags?.map(async (name: string) => {
+          const existingTag = await db
+            .select()
+            .from(tagsTable)
+            .where(eq(tagsTable.name, name));
+          if (existingTag.length > 0) {
+            return existingTag[0];
+          } else {
+            const [newTag] = await db
+              .insert(tagsTable)
+              .values({ name })
+              .returning();
+            return newTag;
+          }
+        }) || [];
+      const tagResults = await Promise.all(tagPromises);
+
+      // Insert content tags
+      const insertContentTags = tagResults.map((tag) => {
+        return db.insert(contentTagsTable).values({
+          contentId: newContent.id,
+          tagId: tag.id,
+        });
+      });
+      await Promise.allSettled(insertContentTags);
+
+      // Insert content history
       await db.insert(contentHistoryTable).values({
         contentId: newContent.id,
         title,
@@ -75,6 +105,27 @@ contentRoutes.get(
         return response.status(404).send();
       }
       return response.status(200).json(contentRecords[0]);
+    } catch (err) {
+      logger.error(err);
+      return response.status(500).send();
+    }
+  }
+);
+
+contentRoutes.get(
+  "/:contentId/tags",
+  validateRequestParams(z.object({ contentId: z.coerce.number() })),
+  async (request, response) => {
+    const { contentId } = request.params;
+    try {
+      const tagRecords = await db
+        .select()
+        .from(contentTagsTable)
+        .where(eq(contentTagsTable.contentId, contentId));
+      if (!tagRecords.length) {
+        return response.status(404).send();
+      }
+      return response.status(200).json(tagRecords);
     } catch (err) {
       logger.error(err);
       return response.status(500).send();
