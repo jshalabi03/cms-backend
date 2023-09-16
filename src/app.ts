@@ -3,6 +3,7 @@ import cors from "cors";
 import swaggerUi from "swagger-ui-express";
 import swaggerDocument from "../swagger.json";
 import appRoutes from "./routes";
+import { errorHandler } from "./middleware/errors";
 
 const app = express();
 
@@ -20,5 +21,8 @@ app.use("/api", appRoutes);
 
 // Setup swagger
 app.use("/", swaggerUi.serve, swaggerUi.setup(swaggerDocument));
+
+// Error handling
+app.use(errorHandler);
 
 export default app;
