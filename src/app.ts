@@ -15,10 +15,10 @@ app.use(express.static("public"));
 // Parse application/json
 app.use(express.json());
 
-// Setup swagger
-app.use("/api-docs", swaggerUi.serve, swaggerUi.setup(swaggerDocument));
-
 // Serve api
 app.use("/api", appRoutes);
+
+// Setup swagger
+app.use("/", swaggerUi.serve, swaggerUi.setup(swaggerDocument));
 
 export default app;
