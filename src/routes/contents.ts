@@ -73,22 +73,67 @@ contentRoutes.post(
           updatedAt: new Date().toISOString(),
         });
 
-        return response.status(201).json(newContent);
+        return response
+          .status(201)
+          .json({ ...newContent, tags: tagResults.map((t) => t.name) });
       });
     } catch (error) {
       logger.error(error);
-      return response.status(500).json({ error });
+      return response.status(500).json({ error: "Internal Server Error" });
     }
   }
 );
 
 contentRoutes.get("/", async (_request, response) => {
   try {
-    const contentsItems = await db.select().from(contentsTable);
-    return response.status(200).json(contentsItems);
+    const contentsItems = await db
+      .select({
+        contents: contentsTable,
+        tagName: tagsTable.name,
+      })
+      .from(contentsTable)
+      .leftJoin(
+        contentTagsTable,
+        eq(contentTagsTable.contentId, contentsTable.id)
+      )
+      .leftJoin(tagsTable, eq(contentTagsTable.tagId, tagsTable.id));
+    const aggregatedContents = contentsItems.reduce<
+      Record<
+        number,
+        {
+          content: {
+            id: number;
+            title: string;
+            body: string | null;
+            views: number | null;
+          };
+          tags: string[];
+        }
+      >
+    >((acc, item) => {
+      const { contents, tagName } = item;
+      if (!acc[contents.id]) {
+        acc[contents.id] = {
+          content: {
+            id: contents.id,
+            title: contents.title,
+            body: contents.body,
+            views: contents.views,
+          },
+          tags: [],
+        };
+      }
+      if (tagName) acc[contents.id].tags.push(tagName);
+      return acc;
+    }, {});
+
+    const result = Object.values(aggregatedContents).map((r) => {
+      return { ...r.content, tags: r.tags };
+    });
+    return response.status(200).json(result);
   } catch (error) {
     logger.error(error);
-    return response.status(500).json({ error });
+    return response.status(500).json({ error: "Internal Server Error" });
   }
 });
 
@@ -98,37 +143,24 @@ contentRoutes.get(
   async (request, response) => {
     const { contentId } = request.params;
     try {
-      // Increment views and return content
-      const contentRecords = await db
-        .update(contentsTable)
-        .set({ views: sql`${contentsTable.views} + 1` })
-        .where(eq(contentsTable.id, contentId))
-        .returning();
-      if (!contentRecords.length) {
-        return response.status(404).send();
-      }
-      return response.status(200).json(contentRecords[0]);
-    } catch (error) {
-      logger.error(error);
-      return response.status(500).json({ error });
-    }
-  }
-);
-
-contentRoutes.get(
-  "/:contentId/tags",
-  validateRequestParams(z.object({ contentId: z.coerce.number() })),
-  async (request, response) => {
-    const { contentId } = request.params;
-    try {
-      const tagRecords = await db
-        .select()
-        .from(contentTagsTable)
-        .where(eq(contentTagsTable.contentId, contentId));
-      if (!tagRecords.length) {
-        return response.status(404).send();
-      }
-      return response.status(200).json(tagRecords);
+      return await db.transaction(async (tx) => {
+        // Increment views and return content
+        const contentRecords = await tx
+          .update(contentsTable)
+          .set({ views: sql`${contentsTable.views} + 1` })
+          .where(eq(contentsTable.id, contentId))
+          .returning();
+        if (!contentRecords.length) {
+          return response.status(404).send();
+        }
+        const tagRecords = await tx
+          .select()
+          .from(contentTagsTable)
+          .innerJoin(tagsTable, eq(tagsTable.id, contentTagsTable.tagId))
+          .where(eq(contentTagsTable.contentId, contentId));
+        const tags = tagRecords.map((r) => r.tags.name);
+        return response.status(200).json({ ...contentRecords[0], tags });
+      });
     } catch (error) {
       logger.error(error);
       return response.status(500).json({ error });
@@ -164,12 +196,18 @@ contentRoutes.put(
           ? maxVersionContent[0].version
           : 0;
 
-        // Update content
-        const updatedContent = await tx
-          .update(contentsTable)
-          .set({ title, body })
-          .where(eq(contentsTable.id, contentId))
-          .returning();
+        // Update or retrieve content
+        const updatedContent =
+          title || body
+            ? await tx
+                .update(contentsTable)
+                .set({ title, body })
+                .where(eq(contentsTable.id, contentId))
+                .returning()
+            : await tx
+                .select()
+                .from(contentsTable)
+                .where(eq(contentsTable.id, contentId));
         if (!updatedContent.length) {
           return response.status(404).send();
         }
@@ -202,9 +240,19 @@ contentRoutes.put(
           }) || [];
         const tagResults = await Promise.all(tagPromises);
 
-        // Delete old content tags
-        await tx
-          .delete(contentTagsTable)
+        // Delete old content tags if new ones are specified, retrieve otherwise
+        if (tagResults.length) {
+          await tx
+            .delete(contentTagsTable)
+            .where(eq(contentTagsTable.contentId, contentId))
+            .returning();
+        }
+
+        // Fetch old content tags, if still exist
+        const oldTags = await tx
+          .select()
+          .from(contentTagsTable)
+          .innerJoin(tagsTable, eq(tagsTable.id, contentTagsTable.tagId))
           .where(eq(contentTagsTable.contentId, contentId));
 
         // Insert new content tags
@@ -215,12 +263,14 @@ contentRoutes.put(
           });
         });
         await Promise.allSettled(insertContentTags);
-
-        return response.status(200).json(updatedContentRecord);
+        const tagsArr = tagResults.length
+          ? tagResults.map((r) => r.name)
+          : oldTags.map((r) => r.tags.name);
+        return response.status(200).json({ ...updatedContentRecord, tagsArr });
       });
     } catch (error) {
       logger.error(error);
-      return response.status(500).json({ error });
+      return response.status(500).json({ error: "Internal Server Error" });
     }
   }
 );
@@ -241,7 +291,7 @@ contentRoutes.delete(
       return response.status(204).send();
     } catch (error) {
       logger.error(error);
-      return response.status(500).json({ error });
+      return response.status(500).json({ error: "Internal Server Error" });
     }
   }
 );
@@ -255,14 +305,15 @@ contentRoutes.get(
       const historyRecords = await db
         .select()
         .from(contentHistoryTable)
-        .where(eq(contentHistoryTable.contentId, contentId));
+        .where(eq(contentHistoryTable.contentId, contentId))
+        .orderBy(desc(contentHistoryTable.version));
       if (!historyRecords.length) {
         return response.status(404).send();
       }
       return response.status(200).json(historyRecords);
     } catch (error) {
       logger.error(error);
-      return response.status(500).send({ error });
+      return response.status(500).send({ error: "Internal Server Error" });
     }
   }
 );
@@ -323,7 +374,7 @@ contentRoutes.post(
       });
     } catch (error) {
       logger.error(error);
-      return response.status(500).json({ error });
+      return response.status(500).json({ error: "Internal Server Error" });
     }
   }
 );

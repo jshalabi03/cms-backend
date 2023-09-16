@@ -33,18 +33,55 @@ tagRoutes.get(
     try {
       const { tagId } = request.params;
       const records = await db
-        .select()
+        .select({
+          contents: contentsTable,
+          tag: tagsTable,
+        })
         .from(contentsTable)
-        .innerJoin(
+        .leftJoin(
           contentTagsTable,
           eq(contentsTable.id, contentTagsTable.contentId)
         )
-        .innerJoin(tagsTable, eq(contentTagsTable.tagId, tagsTable.id))
+        .leftJoin(tagsTable, eq(contentTagsTable.tagId, tagsTable.id))
         .where(eq(tagsTable.id, tagId));
-      const transformedRecords = records.map((r) => {
-        return { ...r.contents, tag: r.tags };
-      });
-      return response.status(200).json(transformedRecords);
+      const aggregatedRecords = records.reduce<
+        Record<
+          number,
+          {
+            content: {
+              id: number;
+              title: string;
+              body: string | null;
+              views: number | null;
+            };
+            tags: {
+              id: number;
+              name: string;
+            }[];
+          }
+        >
+      >((acc, item) => {
+        const { contents, tag } = item;
+        if (!acc[contents.id]) {
+          acc[contents.id] = {
+            content: {
+              id: contents.id,
+              title: contents.title,
+              body: contents.body,
+              views: contents.views,
+            },
+            tags: [],
+          };
+        }
+        if (tag) acc[contents.id].tags.push(tag);
+        return acc;
+      }, {});
+      const result = Object.values(aggregatedRecords)
+        .filter((r) => r.tags.find((tag) => tag.id == tagId))
+        .map((r) => {
+          return { ...r.content, tags: r.tags.map((t) => t.name) };
+        });
+      return response.status(200).json(result);
     } catch (error) {
       logger.error(error);
       return response.status(500).json({ error });
