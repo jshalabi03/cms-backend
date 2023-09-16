@@ -2,7 +2,6 @@ import { Router } from "express";
 import { eq, sql, desc, and } from "drizzle-orm";
 import { z } from "zod";
 import { validateRequest, validateRequestParams } from "zod-express-middleware";
-import logger from "@/winston";
 
 import { db } from "@/db";
 import {

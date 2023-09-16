@@ -2,7 +2,7 @@ import { drizzle } from "drizzle-orm/better-sqlite3";
 import Database from "better-sqlite3";
 import url from "node:url";
 
-if (process.env.NODE_ENV == "TEST") {
+if (process.env.NODE_ENV == "test") {
   process.env.DATABASE_URL = ":memory:";
 } else {
   process.env.DATABASE_URL ||= url
