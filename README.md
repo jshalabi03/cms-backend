@@ -1,6 +1,6 @@
 # Content Management System API
 
-This application serves as a simple backend CMS with support for tagging, versioning, and analytics.
+This application serves as a minimal backend CMS with support for tagging, versioning, and analytics.
 
 ## Built with
 
