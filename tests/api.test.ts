@@ -1,7 +1,7 @@
 /**
  * This file contains integration tests for the backend API
  * Testcases use an in-memory sqlite3 DB that is migrated before each run @see /src/db
- * Tests validate responses and DB state for API endpoints
+ * Tests validate HTTP responses and DB state for API
  */
 
 import request from "supertest";

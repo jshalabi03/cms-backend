@@ -2,7 +2,6 @@
  * Testing utility
  */
 
-import request from "supertest";
 import { db } from "../src/db";
 import {
   contents as contentsTable,
