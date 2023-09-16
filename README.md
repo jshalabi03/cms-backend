@@ -1,6 +1,6 @@
 # Content Management System API
 
-This application serves as a minimal backend CMS with support for tagging, versioning, and analytics.
+Minimal content management system with support for tagging, versioning, and analytics.
 
 ## Built with
 
@@ -14,7 +14,8 @@ This application serves as a minimal backend CMS with support for tagging, versi
 
 ## Running locally
 
-- Ensure Node.js v16 is installed
+- Ensure Node.js v16 is installed with `node -v`
 - Install dependencies with `npm install`
 - Create database in root directory with `touch production.sqlite3`
 - Start development server with `npm run dev`
+- View Swagger UI documentation at [http://localhost:3000](http://localhost:3000)
