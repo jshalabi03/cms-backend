@@ -79,4 +79,9 @@ tagRoutes.get(
   }
 );
 
+tagRoutes.delete("/", async (_request, response) => {
+  await db.delete(tagsTable).returning();
+  return response.status(204).send();
+});
+
 export default tagRoutes;

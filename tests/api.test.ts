@@ -443,6 +443,27 @@ describe("Test api", () => {
     });
   });
 
+  it("should delete tags", async () => {
+    const newContent: CreateContentRequest = {
+      title: "Test Content",
+      body: "Test Body",
+      tags: ["tag1", "tag2"],
+    };
+    const createResponse = await createContent(newContent);
+    const updatedContent: UpdateContentRequest = {
+      title: "Updated Test Content",
+      body: "Updated Test Body",
+      tags: ["tag2", "tag3"],
+    };
+    await updateContent(createResponse.body.id, updatedContent);
+    expect(createResponse.statusCode).toEqual(201);
+    const res = await request(app).delete("/api/tags");
+    const tagRecords = await db.select().from(tagsTable);
+    expect(tagRecords.length).toEqual(0);
+    const relationalRecords = await db.select().from(contentTagsTable);
+    expect(relationalRecords.length).toEqual(0);
+  });
+
   it("should handle not found content", async () => {
     const res = await request(app).get("/api/contents/9999");
     expect(res.statusCode).toEqual(404);
