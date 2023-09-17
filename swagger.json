@@ -326,6 +326,29 @@
             }
           }
         }
+      },
+      "delete": {
+        "summary": "Delete all tags",
+        "responses": {
+          "204": {
+            "description": "Successfully deleted"
+          },
+          "500": {
+            "description": "Server error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "error": {
+                      "type": "string"
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
       }
     },
     "/tags/{tagId}/contents": {
